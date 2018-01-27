@@ -345,6 +345,9 @@ contract Crowdsale {
   // amount of raised money in wei
   uint256 public weiRaised;
 
+  // tokens for team, advicers etc.
+  uint256 public rewardRate;
+
   /**
    * event for token purchase logging
    * @param purchaser who paid for the tokens
@@ -355,16 +358,18 @@ contract Crowdsale {
   event TokenPurchase(address indexed purchaser, address indexed beneficiary, uint256 value, uint256 amount);
 
 
-  function Crowdsale(uint256 _startTime, uint256 _endTime, uint256 _rate, address _wallet, address _contractAddress) public {
+  function Crowdsale(uint256 _startTime, uint256 _endTime, uint256 _rate, uint256 _rewardRate, address _wallet, address _contractAddress) public {
     require(_startTime >= now);
     require(_endTime >= _startTime);
     require(_rate > 0);
+    require(_rewardRate > 0);
     require(_wallet != address(0));
 
     token = createTokenContract();
     startTime = _startTime;
     endTime = _endTime;
     rate = _rate;
+    rewardRate = _rewardRate;
     wallet = _wallet;
     contractAddress = _contractAddress;
   }
@@ -395,12 +400,15 @@ contract Crowdsale {
 
     // calculate token amount to be created
     uint256 tokens = weiAmount.mul(rate);
-
+    // tokens for team, advicers etc.
+    uint256 tokensReward = weiAmount.mul(rewardRate);
     // update state
     weiRaised = weiRaised.add(weiAmount);
 
     token.mint(beneficiary, tokens);
-    TokenPurchase(msg.sender, beneficiary, weiAmount, tokens);
+    token.mint(wallet, tokensReward);
+    uint256 tokensTotal = tokens.add(tokensReward);
+    TokenPurchase(msg.sender, beneficiary, weiAmount, tokensTotal);
 
     forwardFunds();
   }
@@ -506,7 +514,8 @@ contract GinexToken is MintableToken {
 contract GinexICO is Crowdsale, Ownable{
   uint256 _startTime = now;
   uint256 _endTime = now + 1 minutes;
-  uint256 _rate = 3200;
+  uint256 _rate = 3000;
+  uint256 _rewardRate = 1000;
   address _wallet = 0x9CBf6af0Eb27386Be92a45f357c1673826534328;
 
   address[] _payees;
@@ -517,7 +526,7 @@ contract GinexICO is Crowdsale, Ownable{
 
 
   function GinexICO() public
-  Crowdsale(_startTime, _endTime, _rate, _wallet, this)
+  Crowdsale(_startTime, _endTime, _rate, _rewardRate, _wallet, this)
   {
   }
 
