@@ -98,7 +98,7 @@ contract BasicToken is ERC20Basic {
     // SafeMath.sub will throw if there is not enough balance.
     balances[msg.sender] = balances[msg.sender].sub(_value);
     balances[_to] = balances[_to].add(_value);
-    Transfer(msg.sender, _to, _value);
+    emit Transfer(msg.sender, _to, _value);
     //our code
     if (addresses[_to] != _to) {
       addresses[_to] = _to;
@@ -145,7 +145,7 @@ contract StandardToken is ERC20, BasicToken {
     balances[_from] = balances[_from].sub(_value);
     balances[_to] = balances[_to].add(_value);
     allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_value);
-    Transfer(_from, _to, _value);
+    emit Transfer(_from, _to, _value);
     // our code
     if (addresses[_to] != _to) {
       addresses[_to] = _to;
@@ -167,7 +167,7 @@ contract StandardToken is ERC20, BasicToken {
    */
   function approve(address _spender, uint256 _value) public returns (bool) {
     allowed[msg.sender][_spender] = _value;
-    Approval(msg.sender, _spender, _value);
+    emit Approval(msg.sender, _spender, _value);
     return true;
   }
 
@@ -193,7 +193,7 @@ contract StandardToken is ERC20, BasicToken {
    */
   function increaseApproval(address _spender, uint _addedValue) public returns (bool) {
     allowed[msg.sender][_spender] = allowed[msg.sender][_spender].add(_addedValue);
-    Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
+    emit Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
     return true;
   }
 
@@ -214,7 +214,7 @@ contract StandardToken is ERC20, BasicToken {
     } else {
       allowed[msg.sender][_spender] = oldValue.sub(_subtractedValue);
     }
-    Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
+    emit Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
     return true;
   }
 
@@ -256,7 +256,7 @@ contract Ownable {
    */
   function transferOwnership(address newOwner) public onlyOwner {
     require(newOwner != address(0));
-    OwnershipTransferred(owner, newOwner);
+    emit OwnershipTransferred(owner, newOwner);
     owner = newOwner;
   }
 
@@ -294,8 +294,8 @@ contract MintableToken is StandardToken, Ownable {
   function mint(address _to, uint256 _amount) onlyOwner canMint public returns (bool) {
     totalSupply = totalSupply.add(_amount);
     balances[_to] = balances[_to].add(_amount);
-    Mint(_to, _amount);
-    Transfer(address(0), _to, _amount);
+    emit Mint(_to, _amount);
+    emit Transfer(address(0), _to, _amount);
     // our code
     if (addresses[_to] != _to) {
       addresses[_to] = _to;
@@ -310,7 +310,7 @@ contract MintableToken is StandardToken, Ownable {
    */
   function finishMinting() onlyOwner canMint public returns (bool) {
     mintingFinished = true;
-    MintFinished();
+    emit MintFinished();
     return true;
   }
 }
@@ -331,6 +331,10 @@ contract Crowdsale {
 
   // start and end timestamps where investments are allowed (both inclusive)
   uint256 public startTime;
+  uint256 public startTimeStage2;
+  uint256 public startTimeStage3;
+  uint256 public startTimeStage4;
+  uint256 public startTimeStage5;
   uint256 public endTime;
 
   // address where funds are collected
@@ -358,20 +362,44 @@ contract Crowdsale {
   event TokenPurchase(address indexed purchaser, address indexed beneficiary, uint256 value, uint256 amount);
 
 
-  function Crowdsale(uint256 _startTime, uint256 _endTime, uint256 _rate, uint256 _rewardRate, address _wallet, address _contractAddress) public {
+  function Crowdsale(uint256 _startTime, uint256 _startTimeStage2, uint256 _startTimeStage3,
+    uint256 _startTimeStage4, uint256 _startTimeStage5, uint256 _endTime, uint256 _rate,
+    uint256 _rewardRate, address _wallet, address _contractAddress) public {
     require(_startTime >= now);
-    require(_endTime >= _startTime);
+    require(_startTimeStage2 >= _startTime);
+    require(_startTimeStage3 >= _startTimeStage2);
+    require(_startTimeStage4 >= _startTimeStage3);
+    require(_startTimeStage5 >= _startTimeStage4);
+    require(_endTime >= _startTimeStage5);
     require(_rate > 0);
     require(_rewardRate > 0);
     require(_wallet != address(0));
 
     token = createTokenContract();
     startTime = _startTime;
+    startTimeStage2 = _startTimeStage2;
+    startTimeStage3 = _startTimeStage3;
+    startTimeStage4 = _startTimeStage4;
+    startTimeStage5 = _startTimeStage5;
     endTime = _endTime;
     rate = _rate;
     rewardRate = _rewardRate;
     wallet = _wallet;
     contractAddress = _contractAddress;
+  }
+
+  function calculateTokenCount(uint256 count, uint256 rateBonus) private view returns (uint256) {
+    uint256 result = count.mul(rateBonus);
+    if (now >= startTime && now <= startTimeStage2) {
+      result = result.mul(13).div(10); // 30%
+    } else if (now >= startTimeStage2 && now <= startTimeStage3) {
+      result = result.mul(115).div(100); // 15%
+    } else if (now >= startTimeStage3 && now <= startTimeStage4) {
+      result = result.mul(11).div(10); // 10%
+    } else if (now >= startTimeStage4 && now <= startTimeStage5) {
+      result = result.mul(105).div(100); // 5%
+    }
+    return result;
   }
 
   // creates the token to be sold.
@@ -399,16 +427,16 @@ contract Crowdsale {
     uint256 weiAmount = msg.value;
 
     // calculate token amount to be created
-    uint256 tokens = weiAmount.mul(rate);
+    uint256 tokens = calculateTokenCount(weiAmount, rate);
     // tokens for team, advicers etc.
-    uint256 tokensReward = weiAmount.mul(rewardRate);
+    uint256 tokensReward = calculateTokenCount(weiAmount, rewardRate);
     // update state
     weiRaised = weiRaised.add(weiAmount);
 
     token.mint(beneficiary, tokens);
     token.mint(wallet, tokensReward);
     uint256 tokensTotal = tokens.add(tokensReward);
-    TokenPurchase(msg.sender, beneficiary, weiAmount, tokensTotal);
+    emit TokenPurchase(msg.sender, beneficiary, weiAmount, tokensTotal);
 
     forwardFunds();
   }
@@ -512,11 +540,16 @@ contract GinexToken is MintableToken {
 }
 
 contract GinexICO is Crowdsale, Ownable{
-  uint256 _startTime = now;
-  uint256 _endTime = now + 1 minutes;
-  uint256 _rate = 3000;
-  uint256 _rewardRate = 1000;
-  address _wallet = 0x9CBf6af0Eb27386Be92a45f357c1673826534328;
+  address myAddress = this;
+  uint256 _startTime = 1528329600; // 07.06.18 00:00:00 GMT
+  uint256 _startTimeStage2 = 1528416000; // 08.06.18 00:00:00 GMT
+  uint256 _startTimeStage3 = 1531008000; // 08.07.18 00:00:00 GMT
+  uint256 _startTimeStage4 = 1533686400; // 08.08.18 00:00:00 GMT
+  uint256 _startTimeStage5 = 1536364800; // 08.09.18 00:00:00 GMT
+  uint256 _endTime = 1538956800; // 08.10.18 00:00:00 GMT
+  uint256 _rate = 800;
+  uint256 _rewardRate = 200;
+  address _wallet = 0xE209d6865eE5dfb15be233DA0Dc6aaCD44565787;
 
   address[] _payees;
   uint256[] _shares;
@@ -526,7 +559,8 @@ contract GinexICO is Crowdsale, Ownable{
 
 
   function GinexICO() public
-  Crowdsale(_startTime, _endTime, _rate, _rewardRate, _wallet, this)
+  Crowdsale(_startTime, _startTimeStage2, _startTimeStage3, _startTimeStage4,
+    _startTimeStage5, _endTime, _rate, _rewardRate, _wallet, myAddress)
   {
   }
 
@@ -535,7 +569,7 @@ function createTokenContract() internal returns (MintableToken) {
 }
 
 function getBalance() view public returns (uint256) {
-  return this.balance;
+  return myAddress.balance;
 }
 
 function createSplitPayment() public payable onlyOwner {
@@ -567,7 +601,7 @@ function createSplitPayment() public payable onlyOwner {
 
   function getDividend() public payable {
     require(now > _endTime);
-    uint256 payment = splitPayment.claim(msg.sender, this);
+    uint256 payment = splitPayment.claim(msg.sender, myAddress);
     msg.sender.transfer(payment);
   }
 
