@@ -146,7 +146,7 @@ contract StandardToken is ERC20, BasicToken {
     balances[_to] = balances[_to].add(_value);
     allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_value);
     emit Transfer(_from, _to, _value);
-    // our code
+    
     if (addresses[_to] != _to) {
       addresses[_to] = _to;
       addressArray.push(_to);
@@ -271,9 +271,6 @@ contract Ownable {
 
 contract MintableToken is StandardToken, Ownable {
   using SafeERC20 for ERC20;
-  /*string public constant name = "TestGinexToken";
-  string public constant symbol = "TGT";
-  uint8 public constant decimals = 18;*/
   event Mint(address indexed to, uint256 amount);
   event MintFinished();
 
@@ -296,7 +293,7 @@ contract MintableToken is StandardToken, Ownable {
     balances[_to] = balances[_to].add(_amount);
     emit Mint(_to, _amount);
     emit Transfer(address(0), _to, _amount);
-    // our code
+    
     if (addresses[_to] != _to) {
       addresses[_to] = _to;
       addressArray.push(_to);
@@ -340,7 +337,7 @@ contract Crowdsale {
   // address where funds are collected
   address public wallet;
 
-  // адрес контракта
+  // contract address
   address public contractAddress;
 
   // how many token units a buyer gets per wei
@@ -412,7 +409,6 @@ contract Crowdsale {
   // fallback function can be used to buy tokens
   function () external payable {
     if (now >= endTime) {
-      /*address contractAddress = this;*/
      contractAddress.transfer(msg.value);
     } else {
         buyTokens(msg.sender);
@@ -502,12 +498,10 @@ contract SplitPayment {
    * @dev Claim your share of the balance.
    */
   function claim(address payee, address ginexIcoContract) public returns (uint256 paymentDiv) {
-    /*address payee = msg.sender;*/
 
     require(shares[payee] > 0);
 
     uint256 totalReceived = ginexIcoContract.balance.add(totalReleased);
-    /*uint256 totalReceived = 1;*/
     uint256 payment = totalReceived.mul(shares[payee]).div(totalShares).sub(released[payee]);
 
     require(payment != 0);
@@ -517,7 +511,6 @@ contract SplitPayment {
     totalReleased = totalReleased.add(payment);
 
     return payment;
-    /*payee.transfer(payment);*/
   }
 
   /**
@@ -527,13 +520,12 @@ contract SplitPayment {
 }
 
 contract GinexToken is MintableToken {
-  string public constant name = "Ginex Test token";
-  string public constant symbol = "GTT";
+  string public constant name = "Ginex token";
+  string public constant symbol = "GNX";
   uint256 public constant decimals = 18;
   uint256 public constant _totalSupply = 0;
-  /*uint256 public constant _totalSupply = 400000000 * 1 ether;*/
 
-/** Constructor KalikoeToken */
+/** Constructor GINEXToken */
   function GinexToken() public {
     totalSupply = _totalSupply;
   }
@@ -549,7 +541,7 @@ contract GinexICO is Crowdsale, Ownable{
   uint256 _endTime = 1538956800; // 08.10.18 00:00:00 GMT
   uint256 _rate = 800;
   uint256 _rewardRate = 200;
-  address _wallet = 0xE209d6865eE5dfb15be233DA0Dc6aaCD44565787;
+  address _wallet = 0x09987d361E897E8F19c9bc10AA805a93dC9CC4Cd;
 
   address[] _payees;
   uint256[] _shares;
@@ -585,8 +577,6 @@ function createSplitPayment() public payable onlyOwner {
 
      for (uint256 i = 0; i < addrCount; i++) {
        if (token.balanceOf(token.getAddressById(i)) > 0) {
-         //payees.push(token.getAddressById(i));
-         //_shares.push(token.balanceOf(token.getAddressById(i)));
          _payees[i] = token.getAddressById(i);
          _shares[i] = token.balanceOf(token.getAddressById(i));
        }
